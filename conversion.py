@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import sys
 import time
 
@@ -69,12 +70,17 @@ class Conversion(object):
 
         rates = self.__get_rates()
 
+        retval = {
+            'base_amount': amount,
+            'base': base,
+            'target': target
+        }
+
         # Check if conversion is supported.
         if base not in rates or target not in rates:
-            return {
-                'status': 'not_supported',
-                'result': '-1'
-            }
+            retval['status'] = 'unsupported'
+            retval['target_amount'] = -1
+            return retval
 
         # Convert 'amount' to USD.
         # (The free OpenExchangeRates API restricts base currency to USD)
@@ -83,10 +89,9 @@ class Conversion(object):
 
         # Convert a USD amount to the target currency.
         result = amount * rates[target]
-        return {
-            'status': 'success',
-            'result': result
-        }
+        retval['status'] = 'success'
+        retval['target_amount'] = result
+        return retval
 
     @staticmethod
     def __read_key():
@@ -101,19 +106,53 @@ class Conversion(object):
         return delta < freshness
 
 
-# TODO: return results in Alfred workflow format
+class QueryParser(object):
+    @staticmethod
+    def parse(query):
+        result = re.search('^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$',
+                           query)
+        if not result:
+            return {
+                'status': 'unsupported_query',
+            }
+
+        amount = float(result.group(1))
+        base = result.group(3)
+        target = result.group(5)
+
+        conv = Conversion()
+        conv_result = conv.convert(amount, base, target)
+        if conv_result['status'] != 'success':
+            conv_result['status'] = 'unsupported_currency'
+        return conv_result
+
+
 def handle_alfred(args):
-    print(args.query)
+    qp = QueryParser()
+    result = qp.parse(args.query)
+    if result['status'] == 'success':
+        print('<?xml version="1.0"?><items><item valid="yes"><title>{result}'
+              '</title><subtitle>{base}{amount} = {target}{result}</subtitle>'
+              '<icon>icon.png</icon></item></items>'
+              .format(amount=result['base_amount'],
+                      result=result['target_amount'],
+                      base=result['base'],
+                      target=result['target']))
+    else:
+        print('<?xml version="1.0"?><items><item valid="no"><title>...'
+              '</title><subtitle>Please enter a valid conversion</subtitle>'
+              '<icon>icon.png</icon></item></items>')
 
 
 def handle_cli(args):
     rates = Conversion()
     result = rates.convert(args.amount, args.base, args.target)
-    print(result['result'])
-    if result['status'] is not 'success':
+    print(result['target_amount'])
+    if result['status'] != 'success':
         sys.exit(EXIT_UNSUPPORTED)
     else:
         sys.exit(EXIT_SUCCESS)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
