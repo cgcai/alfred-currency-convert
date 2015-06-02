@@ -56,3 +56,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Project Specific
+apikey
+latest.json
+currencies.json

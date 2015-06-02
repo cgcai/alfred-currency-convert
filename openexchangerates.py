@@ -18,7 +18,7 @@ class OpenExchangeRates(object):
         r = requests.get(url)
         return r.json()
 
-    def latest(self, base_currency='SGD'):
+    def latest(self, base_currency='USD'):
         url = '{base}/latest.json?base={currency}&app_id={app_id}'.format(
             base=OpenExchangeRates.__base_url, currency=base_currency,
             app_id=self.__api_key)
