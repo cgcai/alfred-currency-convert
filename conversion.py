@@ -1,4 +1,6 @@
+import argparse
 import json
+import sys
 import time
 
 from openexchangerates import OpenExchangeRates as API
@@ -8,6 +10,8 @@ API_KEY_FILE = 'apikey'
 CURRENCY_CACHE = 'currencies.json'
 RATES_CACHE = 'latest.json'
 RATES_FRESHNESS = 6 * 60 * 60  # 6 hours
+EXIT_UNSUPPORTED = 3
+EXIT_SUCCESS = 0
 
 
 class APIKeyError(Exception):
@@ -95,8 +99,46 @@ class Conversion(object):
         return delta < freshness
 
 
-def main():
-    pass
+# TODO: return results in Alfred workflow format
+def handle_alfred(args):
+    print(args.query)
+
+
+def handle_cli(args):
+    rates = Conversion()
+    result = rates.convert(args.amount, args.base, args.target)
+    print(result['result'])
+    if result['status'] is not 'success':
+        sys.exit(EXIT_UNSUPPORTED)
+    else:
+        sys.exit(EXIT_SUCCESS)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+        description='Alfred and CLI tool to convert currencies using the '
+        'OpenExchangeRates API.')
+    parser.set_defaults(handler=None)
+    subparsers = parser.add_subparsers()
+
+    # Natural Language
+    alfred_parser = subparsers.add_parser('alfred',
+                                          help='Parse natural language query')
+    alfred_parser.add_argument('query', type=str,
+                               help='The natural language query to run.')
+    alfred_parser.set_defaults(handler=handle_alfred)
+
+    # CLI
+    cli_parser = subparsers.add_parser('convert', help='Invoke in CLI mode.')
+    cli_parser.add_argument('amount', type=float,
+                            help='The amount to convert.')
+    cli_parser.add_argument('base', type=str,
+                            help='Base currency of the conversion.')
+    cli_parser.add_argument('target', type=str,
+                            help='Target currency.')
+    cli_parser.set_defaults(handler=handle_cli)
+
+    args = parser.parse_args()
+    if args.handler:
+        args.handler(args)
+    else:
+        print(parser.format_help())
