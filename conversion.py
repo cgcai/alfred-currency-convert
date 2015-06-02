@@ -131,9 +131,10 @@ def handle_alfred(args):
     qp = QueryParser()
     result = qp.parse(args.query)
     if result['status'] == 'success':
-        print('<?xml version="1.0"?><items><item valid="yes"><title>{result}'
-              '</title><subtitle>{base}{amount} = {target}{result}</subtitle>'
-              '<icon>icon.png</icon></item></items>'
+        print('<?xml version="1.0"?><items><item valid="yes" arg="{result}">'
+              '<title>{result} {target}</title><subtitle>Action this item to '
+              'copy this number to the clipboard</subtitle><icon>icon.png'
+              '</icon></item></items>'
               .format(amount=result['base_amount'],
                       result=result['target_amount'],
                       base=result['base'],
