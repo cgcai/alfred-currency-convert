@@ -6,6 +6,7 @@ import re
 import sys
 import time
 
+from alfred import ScriptFilterList, ScriptFilterListItem
 from openexchangerates import OpenExchangeRates as API
 
 
@@ -131,18 +132,31 @@ def handle_alfred(args):
     qp = QueryParser()
     result = qp.parse(args.query)
     if result['status'] == 'success':
-        print('<?xml version="1.0"?><items><item valid="yes" arg="{result}">'
-              '<title>{result} {target}</title><subtitle>Action this item to '
-              'copy this number to the clipboard</subtitle><icon>icon.png'
-              '</icon></item></items>'
-              .format(amount=result['base_amount'],
-                      result=result['target_amount'],
-                      base=result['base'],
-                      target=result['target']))
+        print(make_alfred_conversion_result(result['target_amount'],
+              result['base'], result['target']))
     else:
-        print('<?xml version="1.0"?><items><item valid="no"><title>...'
-              '</title><subtitle>Please enter a valid conversion</subtitle>'
-              '<icon>icon.png</icon></item></items>')
+        print(make_alfred_invalid_query_result())
+
+
+def make_alfred_conversion_result(result, base, target):
+    retval = ScriptFilterList()
+    conv_result = ScriptFilterListItem(valid=True, arg=result)
+    conv_result.add_title('{} {}'.format(str(result), target))
+    conv_result.add_subtitle('Action this item to copy this number to the '
+                             'clipboard')
+    conv_result.add_icon('icon.png')
+    retval.add_item(conv_result)
+    return retval
+
+
+def make_alfred_invalid_query_result():
+    retval = ScriptFilterList()
+    item = ScriptFilterListItem(valid=False)
+    item.add_title('...')
+    item.add_subtitle('Please enter a valid conversion query')
+    item.add_icon('icon.png')
+    retval.add_item(item)
+    return retval
 
 
 def handle_cli(args):
