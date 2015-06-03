@@ -109,17 +109,29 @@ class Conversion(object):
 
 class QueryParser(object):
     @staticmethod
-    def parse(query):
-        result = re.search('^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$',
-                           query)
-        if not result:
-            return {
-                'status': 'unsupported_query',
-            }
+    def execute_query(query):
+        match_handlers = [
+            # Tuples of the form (handler, regex), evaluated sequentially.
+            (QueryParser.__handle_explicit,
+                '^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$')
+        ]
 
-        amount = float(result.group(1))
-        base = result.group(3)
-        target = result.group(5)
+        # If a match is found, execute its handler and return.
+        for handler, regex in match_handlers:
+            match_result = re.search(regex, query)
+            if match_result:
+                return handler(match_result)
+
+        # Otherwise, return a generic unsupported query result.
+        return {
+            'status': 'unsupported_query'
+        }
+
+    @staticmethod
+    def __handle_explicit(match_result):
+        amount = float(match_result.group(1))
+        base = match_result.group(3)
+        target = match_result.group(5)
 
         conv = Conversion()
         conv_result = conv.convert(amount, base, target)
@@ -130,7 +142,7 @@ class QueryParser(object):
 
 def handle_alfred(args):
     qp = QueryParser()
-    result = qp.parse(args.query)
+    result = qp.execute_query(args.query)
     if result['status'] == 'success':
         print(make_alfred_conversion_result(result['target_amount'],
               result['base'], result['target']))
@@ -153,7 +165,7 @@ def make_alfred_invalid_query_result():
     retval = ScriptFilterList()
     item = ScriptFilterListItem(valid=False)
     item.add_title('...')
-    item.add_subtitle('Please enter a valid conversion query')
+    item.add_subtitle('Start by typing an amount, or a currency to search for')
     item.add_icon('icon.png')
     retval.add_item(item)
     return retval
