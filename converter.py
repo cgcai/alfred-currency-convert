@@ -28,11 +28,7 @@ class App(object):
 
     def handle_alfred(self, args):
         result = self.execute_query(args.query)
-        if result['status'] == 'success':
-            print(make_alfred_conversion_result(result['target_amount'],
-                  result['base'], result['target']))
-        else:
-            print(make_alfred_invalid_query_result())
+        print(result)
 
     def handle_cli(self, args):
         rates = Conversion()
@@ -46,6 +42,8 @@ class App(object):
     def execute_query(self, query):
         match_handlers = [
             # Tuples of the form (handler, regex), evaluated sequentially.
+            (self.__query_autocomplete_preposition,
+                '^ *(\d+(\.\d{1,2})?) +(...) *$'),
             (self.__query_explicit,
                 '^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$')
         ]
@@ -57,9 +55,7 @@ class App(object):
                 return handler(match_result)
 
         # Otherwise, return a generic unsupported query result.
-        return {
-            'status': 'unsupported_query'
-        }
+        return App.__invalid_query_result()
 
     def __query_explicit(self, match_result):
         amount = float(match_result.group(1))
@@ -68,9 +64,13 @@ class App(object):
 
         conv = Conversion(self.__api_key)
         conv_result = conv.convert(amount, base, target)
-        if conv_result['status'] != 'success':
-            conv_result['status'] = 'unsupported_currency'
-        return conv_result
+        return App.__conversion_result(conv_result['target_amount'],
+                                       conv_result['base'],
+                                       conv_result['target'])
+
+    def __query_autocomplete_preposition(self, match_result):
+        query = match_result.group(0).strip()
+        return App.__autocomplete_preposition_result(query)
 
     @staticmethod
     def __read_key():
@@ -78,26 +78,38 @@ class App(object):
             key = f.read().strip()
             return key
 
+    @staticmethod
+    def __autocomplete_preposition_result(query):
+        suggestion = query + ' to '
 
-def make_alfred_conversion_result(result, base, target):
-    retval = ScriptFilterList()
-    conv_result = ScriptFilterListItem(valid=True, arg=result)
-    conv_result.add_title('{} {}'.format(str(result), target))
-    conv_result.add_subtitle('Action this item to copy this number to the '
-                             'clipboard')
-    conv_result.add_icon('icon.png')
-    retval.add_item(conv_result)
-    return retval
+        retval = ScriptFilterList()
+        item = ScriptFilterListItem(valid=False, autocomplete=suggestion)
+        item.add_title('convert {}...'.format(suggestion[:-1]))
+        item.add_subtitle('Action this item to autocomplete')
+        item.add_icon('icon.png')
+        retval.add_item(item)
+        return retval
 
+    @staticmethod
+    def __conversion_result(result, base, target):
+        retval = ScriptFilterList()
+        conv_result = ScriptFilterListItem(valid=True, arg=result)
+        conv_result.add_title('{} {}'.format(str(result), target))
+        conv_result.add_subtitle('Action this item to copy this number to the '
+                                 'clipboard')
+        conv_result.add_icon('icon.png')
+        retval.add_item(conv_result)
+        return retval
 
-def make_alfred_invalid_query_result():
-    retval = ScriptFilterList()
-    item = ScriptFilterListItem(valid=False)
-    item.add_title('...')
-    item.add_subtitle('Start by typing an amount, or a currency to search for')
-    item.add_icon('icon.png')
-    retval.add_item(item)
-    return retval
+    @staticmethod
+    def __invalid_query_result():
+        retval = ScriptFilterList()
+        item = ScriptFilterListItem(valid=False)
+        item.add_title('...')
+        item.add_subtitle('Start by typing an amount')
+        item.add_icon('icon.png')
+        retval.add_item(item)
+        return retval
 
 
 if __name__ == '__main__':
