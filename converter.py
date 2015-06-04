@@ -4,12 +4,13 @@ import argparse
 import re
 import sys
 
-from alfred import ScriptFilterList, ScriptFilterListItem
-from currency import Conversion
+from lib.alfred import ScriptFilterList, ScriptFilterListItem
+from lib.currency import Conversion
 
 
 API_KEY_FILE = 'apikey'
 
+# Used when run in CLI mode.
 EXIT_UNSUPPORTED = 3
 EXIT_SUCCESS = 0
 

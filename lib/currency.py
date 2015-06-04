@@ -1,7 +1,7 @@
 import json
 import time
 
-from openexchangerates import OpenExchangeRates as API
+from lib.openexchangerates import OpenExchangeRates as API
 
 
 CURRENCY_CACHE = 'currencies.json'
