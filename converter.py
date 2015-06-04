@@ -44,6 +44,8 @@ class App(object):
     def execute_query(self, query):
         match_handlers = [
             # Tuples of the form (handler, regex), evaluated sequentially.
+            (self.__query_autocomplete_base_currency,
+                '^ *(\d+(\.\d{1,2})?) +(.{0,2}) *$'),
             (self.__query_autocomplete_preposition,
                 '^ *((\d+(\.\d{1,2})?) +(...)) *$'),
             (self.__query_autocomplete_target_currency,
@@ -82,7 +84,18 @@ class App(object):
         results = {sym: self.__currencies[sym] for sym in self.__currencies
                    if partial_currency in sym}
 
-        return App.__autocomplete_currency_result(query, results, 'target')
+        return App.__autocomplete_currency_result(query, results,
+                                                  result_id_prefix='target')
+
+    def __query_autocomplete_base_currency(self, match_result):
+        query = match_result.group(1)
+        partial_currency = match_result.group(3).upper()
+
+        results = {sym: self.__currencies[sym] for sym in self.__currencies
+                   if partial_currency in sym}
+
+        return App.__autocomplete_currency_result(query, results,
+                                                  result_id_prefix='base')
 
     @staticmethod
     def __autocomplete_currency_result(query, suggestions,
