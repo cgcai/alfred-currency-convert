@@ -18,17 +18,9 @@ EXIT_UNSUPPORTED = 3
 EXIT_SUCCESS = 0
 
 
-class APIKeyError(Exception):
-    pass
-
-
 class Conversion(object):
-    def __init__(self):
-        try:
-            self.__api_key = Conversion.__read_key()
-        except IOError:
-            raise APIKeyError
-
+    def __init__(self, api_key):
+        self.__api_key = api_key
         self.__api = API(self.__api_key)
 
     def __refresh_currencies(self):
@@ -95,24 +87,44 @@ class Conversion(object):
         return retval
 
     @staticmethod
-    def __read_key():
-        with open(API_KEY_FILE, 'r') as f:
-            key = f.read().strip()
-            return key
-
-    @staticmethod
     def __is_fresh(data_ts, freshness):
         now = time.time()
         delta = now - data_ts
         return delta < freshness
 
 
-class QueryParser(object):
-    @staticmethod
-    def execute_query(query):
+class APIKeyError(Exception):
+    pass
+
+
+class App(object):
+    def __init__(self):
+        try:
+            self.__api_key = App.__read_key()
+        except IOError:
+            raise APIKeyError
+
+    def handle_alfred(self, args):
+        result = self.execute_query(args.query)
+        if result['status'] == 'success':
+            print(make_alfred_conversion_result(result['target_amount'],
+                  result['base'], result['target']))
+        else:
+            print(make_alfred_invalid_query_result())
+
+    def handle_cli(self, args):
+        rates = Conversion()
+        result = rates.convert(args.amount, args.base, args.target)
+        print(result['target_amount'])
+        if result['status'] != 'success':
+            sys.exit(EXIT_UNSUPPORTED)
+        else:
+            sys.exit(EXIT_SUCCESS)
+
+    def execute_query(self, query):
         match_handlers = [
             # Tuples of the form (handler, regex), evaluated sequentially.
-            (QueryParser.__handle_explicit,
+            (self.__query_explicit,
                 '^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$')
         ]
 
@@ -127,27 +139,22 @@ class QueryParser(object):
             'status': 'unsupported_query'
         }
 
-    @staticmethod
-    def __handle_explicit(match_result):
+    def __query_explicit(self, match_result):
         amount = float(match_result.group(1))
         base = match_result.group(3)
         target = match_result.group(5)
 
-        conv = Conversion()
+        conv = Conversion(self.__api_key)
         conv_result = conv.convert(amount, base, target)
         if conv_result['status'] != 'success':
             conv_result['status'] = 'unsupported_currency'
         return conv_result
 
-
-def handle_alfred(args):
-    qp = QueryParser()
-    result = qp.execute_query(args.query)
-    if result['status'] == 'success':
-        print(make_alfred_conversion_result(result['target_amount'],
-              result['base'], result['target']))
-    else:
-        print(make_alfred_invalid_query_result())
+    @staticmethod
+    def __read_key():
+        with open(API_KEY_FILE, 'r') as f:
+            key = f.read().strip()
+            return key
 
 
 def make_alfred_conversion_result(result, base, target):
@@ -171,17 +178,9 @@ def make_alfred_invalid_query_result():
     return retval
 
 
-def handle_cli(args):
-    rates = Conversion()
-    result = rates.convert(args.amount, args.base, args.target)
-    print(result['target_amount'])
-    if result['status'] != 'success':
-        sys.exit(EXIT_UNSUPPORTED)
-    else:
-        sys.exit(EXIT_SUCCESS)
-
-
 if __name__ == '__main__':
+    app = App()
+
     parser = argparse.ArgumentParser(
         description='Alfred and CLI tool to convert currencies using the '
         'OpenExchangeRates API.')
@@ -193,7 +192,7 @@ if __name__ == '__main__':
                                           help='Parse natural language query')
     alfred_parser.add_argument('query', type=str,
                                help='The natural language query to run.')
-    alfred_parser.set_defaults(handler=handle_alfred)
+    alfred_parser.set_defaults(handler=app.handle_alfred)
 
     # CLI
     cli_parser = subparsers.add_parser('convert', help='Invoke in CLI mode.')
@@ -203,7 +202,7 @@ if __name__ == '__main__':
                             help='Base currency of the conversion.')
     cli_parser.add_argument('target', type=str,
                             help='Target currency.')
-    cli_parser.set_defaults(handler=handle_cli)
+    cli_parser.set_defaults(handler=app.handle_cli)
 
     args = parser.parse_args()
     if args.handler:
