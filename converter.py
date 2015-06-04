@@ -26,13 +26,15 @@ class App(object):
         except IOError:
             raise APIKeyError
 
+        self.__conv = Conversion(self.__api_key)
+        self.__currencies = self.__conv.supported_currencies()
+
     def handle_alfred(self, args):
         result = self.execute_query(args.query)
-        print(result)
+        sys.stdout.buffer.write(result.__str__().encode('utf-8'))
 
     def handle_cli(self, args):
-        rates = Conversion()
-        result = rates.convert(args.amount, args.base, args.target)
+        result = self.__conv.convert(args.amount, args.base, args.target)
         print(result['target_amount'])
         if result['status'] != 'success':
             sys.exit(EXIT_UNSUPPORTED)
@@ -43,7 +45,9 @@ class App(object):
         match_handlers = [
             # Tuples of the form (handler, regex), evaluated sequentially.
             (self.__query_autocomplete_preposition,
-                '^ *(\d+(\.\d{1,2})?) +(...) *$'),
+                '^ *((\d+(\.\d{1,2})?) +(...)) *$'),
+            (self.__query_autocomplete_target_currency,
+                '^ *((\d+(\.\d{1,2})?) +(...) +(as|in|to)) +(.{0,2}) *$'),
             (self.__query_explicit,
                 '^ *(\d+(\.\d{1,2})?) +(...) +(as|in|to) +(...) *$')
         ]
@@ -62,21 +66,43 @@ class App(object):
         base = match_result.group(3)
         target = match_result.group(5)
 
-        conv = Conversion(self.__api_key)
-        conv_result = conv.convert(amount, base, target)
-        return App.__conversion_result(conv_result['target_amount'],
-                                       conv_result['base'],
-                                       conv_result['target'])
+        conv_result = self.__conv.convert(amount, base, target)
+        return App.__explicit_result(conv_result['target_amount'],
+                                     conv_result['base'],
+                                     conv_result['target'])
 
     def __query_autocomplete_preposition(self, match_result):
-        query = match_result.group(0).strip()
+        query = match_result.group(1)
         return App.__autocomplete_preposition_result(query)
 
+    def __query_autocomplete_target_currency(self, match_result):
+        query = match_result.group(1)
+        partial_currency = match_result.group(6).upper()
+
+        results = {sym: self.__currencies[sym] for sym in self.__currencies
+                   if partial_currency in sym}
+
+        return App.__autocomplete_currency_result(query, results, 'target')
+
     @staticmethod
-    def __read_key():
-        with open(API_KEY_FILE, 'r') as f:
-            key = f.read().strip()
-            return key
+    def __autocomplete_currency_result(query, suggestions,
+                                       result_id_prefix=''):
+        retval = ScriptFilterList()
+        for symbol in suggestions:
+            name = suggestions[symbol]
+            _uid = 'net.qxcg.alfredcc.' + result_id_prefix + '.' + symbol
+            _ac = '{q} {sym} '.format(q=query, sym=symbol)
+
+            item = ScriptFilterListItem(uid=_uid, valid=False,
+                                        autocomplete=_ac)
+            item.add_title(symbol)
+            item.add_subtitle(name)  # TODO: Need to escape special chars
+
+            # [FEATURE] TODO: add icon (country flag) for each currency?
+            item.add_icon('icon.png')
+
+            retval.add_item(item)
+        return retval
 
     @staticmethod
     def __autocomplete_preposition_result(query):
@@ -91,7 +117,7 @@ class App(object):
         return retval
 
     @staticmethod
-    def __conversion_result(result, base, target):
+    def __explicit_result(result, base, target):
         retval = ScriptFilterList()
         conv_result = ScriptFilterListItem(valid=True, arg=result)
         conv_result.add_title('{} {}'.format(str(result), target))
@@ -110,6 +136,12 @@ class App(object):
         item.add_icon('icon.png')
         retval.add_item(item)
         return retval
+
+    @staticmethod
+    def __read_key():
+        with open(API_KEY_FILE, 'r') as f:
+            key = f.read().strip()
+            return key
 
 
 if __name__ == '__main__':

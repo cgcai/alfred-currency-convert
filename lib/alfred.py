@@ -37,7 +37,7 @@ class ScriptFilterListItem(object):
             self.root.attrib['type'] = str(item_type)
 
     def __str__(self):
-        return str(etree.tostring(self.root)).decode('utf-8')
+        return etree.tostring(self.root, encoding='utf-8').decode('utf-8')
 
     def add_title(self, title):
         title_elem = etree.Element('title')
