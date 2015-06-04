@@ -66,7 +66,7 @@
 				<string>Please wait...</string>
 				<key>script</key>
 				<string>. env/bin/activate
-./conversion.py alfred "{query}"
+./converter.py alfred "{query}"
 </string>
 				<key>subtext</key>
 				<string>Convert amounts between currencies</string>
